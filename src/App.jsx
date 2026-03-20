@@ -8,10 +8,12 @@ export default function App() {
   const videoRef = useRef(null);
   const tapHintRef = useRef(null);
   const targetRef = useRef(null);
+  const contentRef = useRef(null);
 
   const userEnabledSoundRef = useRef(false);
+  const scaleIntervalRef = useRef(null);
 
-  // (Optional) your "disable inspect" stuff — doesn't really secure anything, but kept as-is
+  // Disable inspect (optional)
   useEffect(() => {
     const handleContextMenu = (e) => e.preventDefault();
     document.addEventListener("contextmenu", handleContextMenu);
@@ -19,7 +21,9 @@ export default function App() {
     const handleKeyDown = (e) => {
       if (
         e.key === "F12" ||
-        (e.ctrlKey && e.shiftKey && ["I", "C", "J"].includes(e.key.toUpperCase())) ||
+        (e.ctrlKey &&
+          e.shiftKey &&
+          ["I", "C", "J"].includes(e.key.toUpperCase())) ||
         (e.ctrlKey && e.key.toUpperCase() === "U")
       ) {
         e.preventDefault();
@@ -33,7 +37,7 @@ export default function App() {
     };
   }, []);
 
-  // Load scripts ONCE and render scene only after they're ready
+  // Load scripts
   useEffect(() => {
     const loadScriptOnce = (id, src) =>
       new Promise((resolve, reject) => {
@@ -50,7 +54,10 @@ export default function App() {
 
     (async () => {
       try {
-        await loadScriptOnce("aframe-script", "https://aframe.io/releases/1.4.2/aframe.min.js");
+        await loadScriptOnce(
+          "aframe-script",
+          "https://aframe.io/releases/1.4.2/aframe.min.js"
+        );
         await loadScriptOnce(
           "mindar-script",
           "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"
@@ -62,29 +69,59 @@ export default function App() {
     })();
   }, []);
 
-  // Wire up video + target events AFTER scene exists
+  // Main AR logic
   useEffect(() => {
     if (!ready) return;
 
     const video = videoRef.current;
     const tapHint = tapHintRef.current;
     const targetEl = targetRef.current;
+    const content = contentRef.current;
 
-    if (!video || !tapHint || !targetEl) return;
+    if (!video || !tapHint || !targetEl || !content) return;
 
-    // autoplay policy: start muted
     video.muted = true;
     video.playsInline = true;
+
+    const camera = document.querySelector("a-camera");
+
+    const updateScale = () => {
+      if (!camera || !content) return;
+
+      const camPos = camera.object3D.position;
+      const targetPos = targetEl.object3D.position;
+
+      const distance = camPos.distanceTo(targetPos);
+
+      // 🔥 auto scale (smooth + limited)
+      const scaleFactor = Math.min(Math.max(distance * 1.2, 0.6), 2.5);
+
+      const currentScale = content.object3D.scale;
+      const targetScale = new window.THREE.Vector3(
+        scaleFactor,
+        scaleFactor,
+        scaleFactor
+      );
+
+      currentScale.lerp(targetScale, 0.1); // smooth animation
+    };
 
     const onTargetFound = async () => {
       try {
         video.muted = !userEnabledSoundRef.current;
         await video.play();
+
+        // start scaling loop
+        scaleIntervalRef.current = setInterval(updateScale, 100);
       } catch (e) {}
     };
 
     const onTargetLost = () => {
       video.pause();
+
+      if (scaleIntervalRef.current) {
+        clearInterval(scaleIntervalRef.current);
+      }
     };
 
     const enableSound = async () => {
@@ -105,7 +142,9 @@ export default function App() {
     targetEl.addEventListener("targetLost", onTargetLost);
 
     document.body.addEventListener("click", enableSound, { passive: true });
-    document.body.addEventListener("touchstart", enableSound, { passive: true });
+    document.body.addEventListener("touchstart", enableSound, {
+      passive: true,
+    });
 
     return () => {
       targetEl.removeEventListener("targetFound", onTargetFound);
@@ -154,8 +193,21 @@ export default function App() {
 
         <a-camera position="0 0 0" look-controls="enabled: false" />
 
-        <a-entity id="target0" ref={targetRef} mindar-image-target="targetIndex: 0">
-          <a-video src="#video" width="1" height="1" position="0 0 0" />
+        <a-entity
+          id="target0"
+          ref={targetRef}
+          mindar-image-target="targetIndex: 0"
+        >
+          {/* 🔥 content wrapper for scaling */}
+          <a-entity ref={contentRef} scale="1 1 1">
+            {/* ✅ 15:10 ratio → 1.5 : 1 */}
+            <a-video
+              src="#video"
+              width="1.5"
+              height="1"
+              position="0 0 0"
+            />
+          </a-entity>
         </a-entity>
       </a-scene>
     </>
