@@ -79,7 +79,7 @@ export default function App() {
       try {
         video.muted = !userEnabledSoundRef.current;
         await video.play();
-      } catch (e) {}
+      } catch (e) { }
     };
 
     const onTargetLost = () => {
@@ -93,7 +93,7 @@ export default function App() {
 
       try {
         await video.play();
-      } catch (e) {}
+      } catch (e) { }
 
       tapHint.style.display = "none";
       document.body.removeEventListener("click", enableSound);
@@ -157,8 +157,8 @@ export default function App() {
           {/* ✅ 9:16 Portrait Video */}
           <a-video
             src="#video"
-            width="0.5625"   // 9/16
-            height="1"
+            width="1.02"
+            height="1.53"
             position="0 0 0"
           />
         </a-entity>
